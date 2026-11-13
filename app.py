@@ -10,7 +10,7 @@ from flask import Flask, jsonify, request, Response
 
 TOKEN = os.environ.get("UPSTOX_TOKEN", "")
 HDR = {"Authorization": f"Bearer {TOKEN}", "Accept": "application/json"}
-P = dict(base_max=50, leg_min=50, lookback=100)  # Pine script wale hi defaults
+P = dict(base_max=50, leg_min=50, lookback=100, bases=[1, 2, 3, 4, 5])  # Pine script wale hi defaults
 TFS = ["Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly"]
 zones = {tf: {} for tf in TFS}
 state = {"msg": "Starting...", "done": 0, "total": 0}
@@ -58,7 +58,7 @@ def scan(df):
     bp = lambda i: abs(C[i] - O[i]) / (H[i] - L[i]) * 100 if H[i] > L[i] else 0
     res = {}
     for k in range(1, min(P["lookback"], N - 7) + 1):
-        for n in range(1, 6):
+        for n in P["bases"]:
             li = k + n + 1
             if li >= N or bp(li) < P["leg_min"] or bp(k) < P["leg_min"]:
                 continue
