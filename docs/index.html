@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Zone Scanner</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1520;color:#e8e8e8;font-family:system-ui,sans-serif;text-align:center}
+h1{margin:24px 0 4px;color:#cfcfcf}.sub{color:#9aa5b1;font-size:14px}
+.row{display:flex;gap:12px;justify-content:center;padding:16px 12px 0;flex-wrap:wrap}
+.seg{display:flex;border:1px solid #8a94a0;border-radius:12px;padding:4px;gap:4px}
+.seg button{background:none;border:0;color:#cbd2d9;padding:10px 16px;border-radius:9px;font-size:14px;cursor:pointer}
+.seg button.on{background:#c9a227;color:#111;font-weight:600}
+.tabs{display:flex;gap:18px;overflow-x:auto;padding:22px 16px 10px;border-bottom:1px solid #2a3642;justify-content:center}
+.tabs span{color:#aab3bd;cursor:pointer;white-space:nowrap;padding-bottom:8px}
+.tabs span.on{color:#c9a227;border-bottom:2px solid #c9a227}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:16px;max-width:900px;margin:auto}
+.tile{display:block;text-decoration:none;color:#fff;background:linear-gradient(145deg,#142435,#0d1824);
+border:1px solid #223244;border-radius:6px;padding:14px 8px;min-height:92px}
+.tile b{display:block;font-size:15px;letter-spacing:.5px}.tile small{display:block;color:#9aa5b1;margin-top:5px;font-size:12px}
+.in{color:#4ade80!important}.bad{color:#f59e0b!important}.demand b{color:#6ee7a0}.supply b{color:#ff8a8a}
+</style></head><body>
+<h1>Zone Scanner</h1><div class="sub" id="st">Loading...</div>
+<div class="row">
+ <div class="seg" id="crit"><button data-v="approach">Approaching</button><button data-v="zone" class="on">In Zone / Reacting</button></div>
+ <div class="seg" id="zone"><button data-v="demand">Demand</button><button data-v="supply" class="on">Supply</button></div>
+</div>
+<div class="tabs" id="tfs"></div><div class="grid" id="g"></div>
+<script>
+const TFS=["Daily","Weekly","Monthly","Quarterly","Half Yearly","Yearly"];
+let s={tf:"Weekly",crit:"zone",zone:"supply"},D=null;
+const $=id=>document.getElementById(id);
+$("tfs").innerHTML=TFS.map(t=>`<span data-v="${t}" class="${t==s.tf?'on':''}">${t}</span>`).join("");
+function bind(id,key){$(id).onclick=e=>{const v=e.target.dataset.v;if(!v)return;s[key]=v;
+ [...$(id).children].forEach(c=>c.classList.toggle("on",c.dataset.v==v));render()}}
+bind("crit","crit");bind("zone","zone");bind("tfs","tf");
+function render(){
+ if(!D)return;const out=[];
+ for(const [sym,v] of Object.entries(D.zones[s.tf]||{})){
+  const z=v.z[s.zone];if(!z)continue;const [top,bot,tested]=z,[c,h,l]=v.px;
+  const touch=h>=bot&&l<=top,dist=c>top?(c-top)/c*100:c<bot?(bot-c)/c*100:0;
+  const side=s.zone=="demand"?c>top:c<bot;
+  if((s.crit=="zone"&&touch)||(s.crit=="approach"&&!touch&&side&&dist<=1))
+   out.push({sym,top:top.toFixed(2),bot:bot.toFixed(2),dist:dist.toFixed(2),touch,tested,ltp:c.toFixed(2)});
+ }
+ out.sort((a,b)=>a.dist-b.dist);
+ $("st").textContent=`Updated: ${D.updated} | ${D.total} F&O stocks | ${out.length} match`;
+ $("g").innerHTML=out.map(i=>`<a class="tile ${s.zone}" target="_blank" href="https://in.tradingview.com/chart/?symbol=NSE:${i.sym}">
+ <b>${i.sym}</b><small>${i.bot} - ${i.top}</small>
+ <small class="${i.touch?'in':''}">${i.touch?'IN ZONE':i.dist+'% away'}</small>
+ <small class="${i.tested?'bad':''}">${i.tested?'Tested':'Fresh'} | LTP ${i.ltp}</small></a>`).join("")||'<div class="sub">Koi stock match nahi hua</div>';
+}
+fetch("data.json?"+Date.now()).then(r=>r.json()).then(j=>{D=j;render()}).catch(()=>$("st").textContent="data.json nahi mila - Actions mein pehle ek baar Run workflow karein");
+</script></body></html>
