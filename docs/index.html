@@ -3,6 +3,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0b1520;color:#e8e8e8;font-family:system-ui,sans-serif;text-align:center}
 h1{margin:24px 0 4px;color:#cfcfcf}.sub{color:#9aa5b1;font-size:14px}
+.gear{position:absolute;right:14px;top:14px;background:none;border:1px solid #8a94a0;color:#cbd2d9;border-radius:10px;padding:8px 12px;cursor:pointer}
 .row{display:flex;gap:12px;justify-content:center;padding:16px 12px 0;flex-wrap:wrap}
 .seg{display:flex;border:1px solid #8a94a0;border-radius:12px;padding:4px;gap:4px}
 .seg button{background:none;border:0;color:#cbd2d9;padding:10px 16px;border-radius:9px;font-size:14px;cursor:pointer}
@@ -11,40 +12,124 @@ h1{margin:24px 0 4px;color:#cfcfcf}.sub{color:#9aa5b1;font-size:14px}
 .tabs span{color:#aab3bd;cursor:pointer;white-space:nowrap;padding-bottom:8px}
 .tabs span.on{color:#c9a227;border-bottom:2px solid #c9a227}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:16px;max-width:900px;margin:auto}
-.tile{display:block;text-decoration:none;color:#fff;background:linear-gradient(145deg,#142435,#0d1824);
-border:1px solid #223244;border-radius:6px;padding:14px 8px;min-height:92px}
+.tile{display:block;text-decoration:none;color:#fff;background:linear-gradient(145deg,#142435,#0d1824);border:1px solid #223244;border-radius:6px;padding:14px 8px;min-height:92px}
 .tile b{display:block;font-size:15px;letter-spacing:.5px}.tile small{display:block;color:#9aa5b1;margin-top:5px;font-size:12px}
+.tr{display:flex;justify-content:center;gap:8px;margin-top:8px;font-size:11px}.tr i{font-style:normal;padding:2px 6px;border-radius:8px;background:#1b2a3a}
+.U{color:#4ade80}.Dn{color:#ff6b6b}.S{color:#f5c542}
 .in{color:#4ade80!important}.bad{color:#f59e0b!important}.demand b{color:#6ee7a0}.supply b{color:#ff8a8a}
+.ov{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
+.card{background:#12202f;border:1px solid #c9a227;border-radius:12px;max-width:420px;width:100%;max-height:85vh;overflow:auto;padding:16px;text-align:left}
+.card h3{margin:0 0 4px;color:#c9a227}.card p{margin:10px 0 6px;color:#9aa5b1;font-size:13px}
+.al,.fld{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #223244;font-size:14px;gap:8px}
+.chk{display:flex;flex-wrap:wrap;gap:10px}.chk label{font-size:14px}
+.card input[type=number]{width:80px;background:#0b1520;color:#fff;border:1px solid #3a4a5a;border-radius:6px;padding:6px}
+.btns{display:flex;gap:8px;margin-top:14px}.btns button{flex:1;padding:10px;border:0;border-radius:8px;background:#c9a227;font-weight:600;cursor:pointer}
+.btns button.g{background:#2a3a4a;color:#fff}
 </style></head><body>
+<button class="gear" onclick="openSet()">&#9881; Settings</button>
 <h1>Zone Scanner</h1><div class="sub" id="st">Loading...</div>
 <div class="row">
  <div class="seg" id="crit"><button data-v="approach">Approaching</button><button data-v="zone" class="on">In Zone / Reacting</button></div>
  <div class="seg" id="zone"><button data-v="demand">Demand</button><button data-v="supply" class="on">Supply</button></div>
 </div>
 <div class="tabs" id="tfs"></div><div class="grid" id="g"></div>
+
+<div class="ov" id="ov"><div class="card"><h3>&#9888; Zone ke paas price</h3><p id="ovs"></p><div id="ovl"></div>
+<div class="btns"><button onclick="ov.style.display='none'">Close</button></div></div></div>
+
+<div class="ov" id="set"><div class="card"><h3>Settings</h3>
+<p>Base candles (jitne chahiye tick karein)</p><div class="chk" id="sb"></div>
+<div class="fld"><span>Base body below %</span><input type="number" id="s_base"></div>
+<div class="fld"><span>Leg-in / Leg-out body above %</span><input type="number" id="s_leg"></div>
+<div class="fld"><span>Zone search lookback (bars)</span><input type="number" id="s_look"></div>
+<div class="fld"><span>Approaching / popup distance %</span><input type="number" step="0.1" id="s_near"></div>
+<p>Popup timeframes</p><div class="chk" id="sp"></div>
+<div class="btns"><button onclick="applySet()">Apply</button><button class="g" onclick="resetSet()">Reset</button><button class="g" onclick="set.style.display='none'">Cancel</button></div>
+</div></div>
 <script>
 const TFS=["Daily","Weekly","Monthly","Quarterly","Half Yearly","Yearly"];
-let s={tf:"Weekly",crit:"zone",zone:"supply"},D=null;
+const DEF={bases:[1,2,3,4,5],base:50,leg:50,look:100,near:1,pop:null};
+let S={...DEF};try{S={...DEF,...JSON.parse(localStorage.getItem("zs")||"{}")}}catch(e){}
+let s={tf:"Weekly",crit:"zone",zone:"supply"},D=null,CD=null,CACHE={};
 const $=id=>document.getElementById(id);
 $("tfs").innerHTML=TFS.map(t=>`<span data-v="${t}" class="${t==s.tf?'on':''}">${t}</span>`).join("");
 function bind(id,key){$(id).onclick=e=>{const v=e.target.dataset.v;if(!v)return;s[key]=v;
  [...$(id).children].forEach(c=>c.classList.toggle("on",c.dataset.v==v));render()}}
 bind("crit","crit");bind("zone","zone");bind("tfs","tf");
+
+/* ---- zone logic (Pine/Python wala hi): Demand=DBR/RBR, Supply=RBD/DBD ---- */
+function zoneScan(cd){
+ const N=cd.c.length;if(N<9)return null;
+ const O=cd.o.slice().reverse(),H=cd.h.slice().reverse(),L=cd.l.slice().reverse(),C=cd.c.slice().reverse();
+ const bp=i=>H[i]>L[i]?Math.abs(C[i]-O[i])/(H[i]-L[i])*100:0,res={},bases=[...S.bases].sort();
+ for(let k=1;k<=Math.min(S.look,N-7);k++){
+  for(const n of bases){
+   const li=k+n+1;if(li>=N||bp(li)<S.leg||bp(k)<S.leg)continue;
+   let ok=true,gh=-1e18,gl=1e18,bt=-1e18,bb=1e18;
+   for(let i=k+1;i<=k+n;i++){if(bp(i)>=S.base){ok=false;break}
+    gh=Math.max(gh,H[i]);gl=Math.min(gl,L[i]);bt=Math.max(bt,O[i],C[i]);bb=Math.min(bb,O[i],C[i])}
+   if(!ok)continue;
+   if(C[k]>O[k]&&!res.demand){let inv=false,t=false;
+    for(let j=0;j<k;j++){if(C[j]<gl)inv=true;if(H[j]>=gl&&L[j]<=bt)t=true}
+    if(!inv)res.demand=[bt,gl,t]}
+   if(C[k]<O[k]&&!res.supply){let inv=false,t=false;
+    for(let j=0;j<k;j++){if(C[j]>gh)inv=true;if(H[j]>=bb&&L[j]<=gh)t=true}
+    if(!inv)res.supply=[gh,bb,t]}
+  }
+  if(res.demand&&res.supply)break;
+ }
+ return{z:res,px:[C[0],H[0],L[0]]};
+}
+function zonesFor(tf){const k=tf+JSON.stringify([S.bases,S.base,S.leg,S.look]);
+ if(CACHE[k])return CACHE[k];const o={};
+ for(const [sym,cd] of Object.entries(CD[tf]||{})){const r=zoneScan(cd);if(r)o[sym]=r}
+ return CACHE[k]=o}
+
+const TL={U:["&#9650; Up","U"],D:["&#9660; Down","Dn"],S:["&#9654; Side","S"]};
+function trendRow(t){return '<div class="tr">'+[["D","Daily"],["W","Weekly"],["M","Monthly"]].map(([a,f])=>{const x=TL[t[f]];
+ return x?`<i class="${x[1]}">${a} ${x[0]}</i>`:`<i>${a} -</i>`}).join("")+'</div>'}
+
 function render(){
- if(!D)return;const out=[];
- for(const [sym,v] of Object.entries(D.zones[s.tf]||{})){
+ if(!CD)return;const out=[],Z=zonesFor(s.tf);
+ for(const [sym,v] of Object.entries(Z)){
   const z=v.z[s.zone];if(!z)continue;const [top,bot,tested]=z,[c,h,l]=v.px;
   const touch=h>=bot&&l<=top,dist=c>top?(c-top)/c*100:c<bot?(bot-c)/c*100:0;
   const side=s.zone=="demand"?c>top:c<bot;
-  if((s.crit=="zone"&&touch)||(s.crit=="approach"&&!touch&&side&&dist<=1))
-   out.push({sym,top:top.toFixed(2),bot:bot.toFixed(2),dist:dist.toFixed(2),touch,tested,ltp:c.toFixed(2)});
+  if((s.crit=="zone"&&touch)||(s.crit=="approach"&&!touch&&side&&dist<=S.near))
+   out.push({tr:(D.trend||{})[sym]||{},sym,top:top.toFixed(2),bot:bot.toFixed(2),dist:dist.toFixed(2),touch,tested,ltp:c.toFixed(2)});
  }
  out.sort((a,b)=>a.dist-b.dist);
- $("st").textContent=`Updated: ${D.updated} | ${D.total} F&O stocks | ${out.length} match`;
+ $("st").textContent=`Updated: ${D.updated} | ${D.total} F&O stocks | ${out.length} match | Base: ${[...S.bases].sort().join(",")}`;
  $("g").innerHTML=out.map(i=>`<a class="tile ${s.zone}" target="_blank" href="https://in.tradingview.com/chart/?symbol=NSE:${i.sym}">
  <b>${i.sym}</b><small>${i.bot} - ${i.top}</small>
  <small class="${i.touch?'in':''}">${i.touch?'IN ZONE':i.dist+'% away'}</small>
- <small class="${i.tested?'bad':''}">${i.tested?'Tested':'Fresh'} | LTP ${i.ltp}</small></a>`).join("")||'<div class="sub">Koi stock match nahi hua</div>';
+ <small class="${i.tested?'bad':''}">${i.tested?'Tested':'Fresh'} | LTP ${i.ltp}</small>${trendRow(i.tr)}</a>`).join("")||'<div class="sub">Koi stock match nahi hua</div>';
 }
-fetch("data.json?"+Date.now()).then(r=>r.json()).then(j=>{D=j;render()}).catch(()=>$("st").textContent="data.json nahi mila - Actions mein pehle ek baar Run workflow karein");
+function popup(){const L=[],tfs=S.pop||D.alert_tfs||["Weekly"];
+ for(const tf of tfs)for(const [sym,v] of Object.entries(zonesFor(tf)))for(const zt of ["demand","supply"]){
+  const z=v.z[zt];if(!z)continue;const [top,bot]=z,[c,h,l]=v.px;if(h>=bot&&l<=top)continue;
+  const side=zt=="demand"?c>top:c<bot,dist=c>top?(c-top)/c*100:(bot-c)/c*100;
+  if(side&&dist<=S.near)L.push({sym,tf,zt,dist})}
+ if(!L.length)return;L.sort((a,b)=>a.dist-b.dist);
+ $("ovs").textContent=`${L.length} stock zone ke paas (${S.near}% ke andar), abhi active nahi hue`;
+ $("ovl").innerHTML=L.map(i=>`<div class="al"><b class="${i.zt}">${i.sym}</b><span>${i.tf} ${i.zt} | ${i.dist.toFixed(2)}% away</span></div>`).join("");
+ $("ov").style.display="flex"}
+
+/* ---- settings ---- */
+function openSet(){
+ $("sb").innerHTML=[1,2,3,4,5].map(n=>`<label><input type="checkbox" class="cb" value="${n}" ${S.bases.includes(n)?'checked':''}> ${n}</label>`).join("");
+ const pop=S.pop||(D&&D.alert_tfs)||["Weekly"];
+ $("sp").innerHTML=TFS.map(t=>`<label><input type="checkbox" class="cp" value="${t}" ${pop.includes(t)?'checked':''}> ${t}</label>`).join("");
+ $("s_base").value=S.base;$("s_leg").value=S.leg;$("s_look").value=S.look;$("s_near").value=S.near;$("set").style.display="flex"}
+function applySet(){
+ const b=[...document.querySelectorAll(".cb:checked")].map(x=>+x.value);if(!b.length)return alert("Kam se kam 1 base candle chunein");
+ S={bases:b,base:+$("s_base").value||50,leg:+$("s_leg").value||50,look:Math.min(120,+$("s_look").value||100),near:+$("s_near").value||1,
+  pop:[...document.querySelectorAll(".cp:checked")].map(x=>x.value)};
+ try{localStorage.setItem("zs",JSON.stringify(S))}catch(e){}
+ $("set").style.display="none";render();popup()}
+function resetSet(){S={...DEF};try{localStorage.removeItem("zs")}catch(e){}openSet()}
+
+Promise.all([fetch("data.json?"+Date.now()).then(r=>r.json()),fetch("candles.json?"+Date.now()).then(r=>r.json())])
+ .then(([d,c])=>{D=d;CD=c;render();popup()})
+ .catch(()=>$("st").textContent="Data nahi mila - Actions mein pehle ek baar Run workflow karein");
 </script></body></html>
