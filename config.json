@@ -1,0 +1,8 @@
+{
+  "bases": [1, 2, 3, 4, 5],
+  "base_max_body_pct": 50,
+  "leg_min_body_pct": 50,
+  "lookback": 100,
+  "alert_timeframes": ["Weekly"],
+  "alert_distance_pct": 1.0
+}
